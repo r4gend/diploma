@@ -5,11 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1f5bf1c0-96e6-408b-b90c-236e98df7763" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/api-stress-tester.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,6 +29,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "Python.Backend.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -47,7 +44,7 @@
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "npm.Frontend.executor": "Run",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
+    "settings.editor.selected.configurable": "preferences.pluginManager",
     "vue.rearranger.settings.migration": "true"
   },
   "keyToStringList": {
@@ -56,7 +53,7 @@
     ]
   }
 }]]></component>
-  <component name="RunManager" selected="Compound.Full stack">
+  <component name="RunManager" selected="Docker.docker-compose.yml: Compose Deployment">
     <configuration name="Full stack" type="CompoundRunConfigurationType">
       <toRun name="Frontend" type="js.build_tools.npm" />
       <toRun name="Backend" type="PythonConfigurationType" />
@@ -87,6 +84,14 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="docker-compose.yml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" temporary="true" server-name="Docker">
+      <deployment type="docker-compose.yml">
+        <settings>
+          <option name="sourceFilePath" value="docker-compose.yml" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
     <configuration name="Frontend" type="js.build_tools.npm">
       <package-json value="$PROJECT_DIR$/frontend/package.json" />
       <command value="run" />
@@ -99,9 +104,15 @@
     </configuration>
     <list>
       <item itemvalue="Compound.Full stack" />
+      <item itemvalue="Docker.docker-compose.yml: Compose Deployment" />
       <item itemvalue="npm.Frontend" />
       <item itemvalue="Python.Backend" />
     </list>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Docker.docker-compose.yml: Compose Deployment" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -120,6 +131,12 @@
       <updated>1775579726423</updated>
       <workItem from="1775579727440" duration="64000" />
       <workItem from="1775581202696" duration="2135000" />
+      <workItem from="1777979077259" duration="318000" />
+      <workItem from="1777979421292" duration="2919000" />
+      <workItem from="1777982437966" duration="265000" />
+      <workItem from="1777982717631" duration="232000" />
+      <workItem from="1777983057574" duration="636000" />
+      <workItem from="1777986553131" duration="135000" />
     </task>
     <servers />
   </component>
