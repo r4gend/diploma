@@ -1,20 +1,28 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Zap, LayoutDashboard, Plus, List,
-  Activity, Loader2
+  Activity, Loader2, LogOut, User
 } from 'lucide-react';
 import { statusColor, statusBg } from '../utils/helpers';
+import { useAuth } from '../context/AuthContext';
 
 // --- Layout ---
 export function Layout({ children }) {
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/tests', icon: List, label: 'Tests' },
     { to: '/tests/new', icon: Plus, label: 'New Test' },
   ];
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -28,7 +36,7 @@ export function Layout({ children }) {
             </div>
             <div>
               <h1 className="font-display font-bold text-lg text-surface-100 leading-none">
-                StressForge
+                API Stresser
               </h1>
               <p className="text-[10px] uppercase tracking-[0.2em] text-surface-500 mt-0.5">
                 API Load Tester
@@ -58,8 +66,28 @@ export function Layout({ children }) {
           })}
         </nav>
 
-        <div className="p-4 border-t border-surface-800/60">
-          <div className="flex items-center gap-2 text-xs text-surface-600">
+        <div className="p-4 border-t border-surface-800/60 space-y-3">
+          {user && (
+            <div className="flex items-center gap-2 px-1">
+              <div className="w-7 h-7 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center flex-shrink-0">
+                <User className="w-3.5 h-3.5 text-accent" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-surface-200 truncate">{user.username}</p>
+                <p className="text-xs text-surface-500 truncate">{user.email}</p>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-surface-400
+                       hover:text-danger hover:bg-danger/10 border border-transparent
+                       hover:border-danger/20 transition-all duration-200"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </button>
+          <div className="flex items-center gap-2 text-xs text-surface-600 px-1">
             <Activity className="w-3 h-3" />
             <span>v1.0.0</span>
           </div>

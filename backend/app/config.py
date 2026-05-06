@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     DEBUG: bool = True
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    JWT_SECRET_KEY: str = "change-me-in-production-use-long-random-string"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     class Config:
         env_file = ".env"

@@ -11,24 +11,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.models import StressTest, TestResult, TestStatus, HttpMethod
+from app.redis_client import (
+    is_test_cancelled,
+    set_test_cancelled,
+    set_test_progress,
+    clear_test_keys,
+)
+
+_PROGRESS_INTERVAL = 10
 
 
 class StressTestEngine:
-    """
-    Core engine for executing API stress tests.
-    Uses asyncio + aiohttp for high-concurrency HTTP requests.
-    """
-
     def __init__(self, test_id: uuid.UUID):
         self.test_id = test_id
         self.results: list[dict] = []
-        self._cancelled = False
         self._active_users = 0
         self._request_counter = 0
         self._lock = asyncio.Lock()
 
-    async def cancel(self):
-        self._cancelled = True
+    async def _cancelled(self) -> bool:
+        return await is_test_cancelled(str(self.test_id))
 
     async def _load_test_config(self, session: AsyncSession) -> Optional[StressTest]:
         result = await session.execute(
@@ -37,9 +39,10 @@ class StressTestEngine:
         return result.scalar_one_or_none()
 
     async def _update_status(self, session: AsyncSession, status: TestStatus, **kwargs):
-        values = {"status": status, **kwargs}
         await session.execute(
-            update(StressTest).where(StressTest.id == self.test_id).values(**values)
+            update(StressTest)
+            .where(StressTest.id == self.test_id)
+            .values(status=status, **kwargs)
         )
         await session.commit()
 
@@ -49,13 +52,12 @@ class StressTestEngine:
         config: StressTest,
         user_number: int,
     ) -> dict:
-        """Execute a single HTTP request and collect metrics."""
         async with self._lock:
             self._request_counter += 1
             request_number = self._request_counter
 
         method = config.http_method.value
-        headers = config.headers or {}
+        headers = dict(config.headers or {})
         if config.content_type:
             headers.setdefault("Content-Type", config.content_type)
 
@@ -77,9 +79,9 @@ class StressTestEngine:
                 timeout=timeout,
                 ssl=False,
             ) as response:
-                response_data = await response.read()
+                data = await response.read()
                 status_code = response.status
-                response_size = len(response_data)
+                response_size = len(data)
                 if status_code >= 400:
                     is_error = True
                     error_message = f"HTTP {status_code}"
@@ -112,42 +114,41 @@ class StressTestEngine:
         config: StressTest,
         user_number: int,
         requests_per_user: int,
+        total_requests: int,
     ):
-        """Simulate a single virtual user sending sequential requests."""
         self._active_users += 1
         try:
             for _ in range(requests_per_user):
-                if self._cancelled:
+                if await self._cancelled():
                     break
 
                 result = await self._make_request(http_session, config, user_number)
-                result["active_users"] = self._active_users
                 self.results.append(result)
 
-                # Think time between requests
+                done = len(self.results)
+                if done % _PROGRESS_INTERVAL == 0:
+                    errors = sum(1 for r in self.results if r["is_error"])
+                    await set_test_progress(str(self.test_id), done, total_requests, errors)
+
                 if config.think_time_ms > 0:
                     await asyncio.sleep(config.think_time_ms / 1000)
         finally:
             self._active_users -= 1
 
     async def _compute_aggregates(self) -> dict:
-        """Compute statistical aggregates from collected results."""
         if not self.results:
             return {}
 
         response_times = [r["response_time_ms"] for r in self.results]
         errors = [r for r in self.results if r["is_error"]]
         success = [r for r in self.results if not r["is_error"]]
-
         rt_array = np.array(response_times)
 
-        # Status code distribution
-        status_codes = {}
+        status_codes: dict[str, int] = {}
         for r in self.results:
             code = str(r["status_code"]) if r["status_code"] else "error"
             status_codes[code] = status_codes.get(code, 0) + 1
 
-        # Calculate duration
         if len(self.results) >= 2:
             timestamps = [r["timestamp"] for r in self.results]
             duration = (max(timestamps) - min(timestamps)).total_seconds()
@@ -171,10 +172,8 @@ class StressTestEngine:
         }
 
     async def _save_results(self, session: AsyncSession):
-        """Persist individual request results to the database."""
-        batch = []
-        for r in self.results:
-            batch.append(TestResult(
+        batch = [
+            TestResult(
                 stress_test_id=self.test_id,
                 request_number=r["request_number"],
                 user_number=r["user_number"],
@@ -184,25 +183,21 @@ class StressTestEngine:
                 is_error=r["is_error"],
                 error_message=r["error_message"],
                 timestamp=r["timestamp"],
-            ))
-
-        # Bulk insert in batches of 500
+            )
+            for r in self.results
+        ]
         for i in range(0, len(batch), 500):
             session.add_all(batch[i:i + 500])
             await session.commit()
 
     async def run(self):
-        """Execute the full stress test lifecycle."""
         async with async_session() as session:
             config = await self._load_test_config(session)
             if not config:
                 return
-
-            # Mark as running
             await self._update_status(session, TestStatus.RUNNING, started_at=datetime.utcnow())
 
         try:
-            # Distribute requests across virtual users
             requests_per_user = config.total_requests // config.concurrent_users
             remainder = config.total_requests % config.concurrent_users
 
@@ -214,66 +209,65 @@ class StressTestEngine:
 
             async with aiohttp.ClientSession(connector=connector) as http_session:
                 tasks = []
-
                 for user_idx in range(config.concurrent_users):
-                    if self._cancelled:
+                    if await self._cancelled():
                         break
 
-                    # Distribute remainder requests to first N users
                     user_requests = requests_per_user + (1 if user_idx < remainder else 0)
                     if user_requests == 0:
                         continue
 
-                    # Ramp-up delay
                     if config.ramp_up_seconds > 0:
                         delay = (config.ramp_up_seconds / config.concurrent_users) * user_idx
                         await asyncio.sleep(delay)
 
-                    task = asyncio.create_task(
-                        self._virtual_user(http_session, config, user_idx + 1, user_requests)
+                    tasks.append(
+                        asyncio.create_task(
+                            self._virtual_user(
+                                http_session, config, user_idx + 1,
+                                user_requests, config.total_requests,
+                            )
+                        )
                     )
-                    tasks.append(task)
 
                 await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Compute and save
             aggregates = await self._compute_aggregates()
+            cancelled = await self._cancelled()
 
             async with async_session() as session:
                 await self._save_results(session)
                 await self._update_status(
                     session,
-                    TestStatus.CANCELLED if self._cancelled else TestStatus.COMPLETED,
+                    TestStatus.CANCELLED if cancelled else TestStatus.COMPLETED,
                     completed_at=datetime.utcnow(),
                     **aggregates,
                 )
 
-        except Exception as e:
+        except Exception:
             async with async_session() as session:
                 await self._update_status(
-                    session,
-                    TestStatus.FAILED,
-                    completed_at=datetime.utcnow(),
+                    session, TestStatus.FAILED, completed_at=datetime.utcnow()
                 )
             raise
-
-
-# Global registry of running tests for cancellation
-_running_tests: dict[uuid.UUID, StressTestEngine] = {}
+        finally:
+            await clear_test_keys(str(self.test_id))
 
 
 async def start_stress_test(test_id: uuid.UUID):
     engine = StressTestEngine(test_id)
-    _running_tests[test_id] = engine
-    try:
-        await engine.run()
-    finally:
-        _running_tests.pop(test_id, None)
+    await engine.run()
 
 
 async def cancel_stress_test(test_id: uuid.UUID) -> bool:
-    engine = _running_tests.get(test_id)
-    if engine:
-        await engine.cancel()
-        return True
-    return False
+    async with async_session() as session:
+        result = await session.execute(
+            select(StressTest).where(
+                StressTest.id == test_id, StressTest.status == TestStatus.RUNNING
+            )
+        )
+        if not result.scalar_one_or_none():
+            return False
+
+    await set_test_cancelled(str(test_id))
+    return True

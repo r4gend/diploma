@@ -1,4 +1,4 @@
-# StressForge — API Stress Testing Web Application
+# Api Stress Tester — API Stress Testing Web Application
 
 A full-stack web application for HTTP API stress/load testing with real-time analytics, built as a bachelor's thesis project.
 

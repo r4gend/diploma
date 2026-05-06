@@ -1,1 +1,7 @@
-from app.routes.stress_test import router
+from fastapi import APIRouter
+from app.routes.stress_test import router as tests_router
+from app.routes.auth import router as auth_router
+
+router = APIRouter()
+router.include_router(auth_router)
+router.include_router(tests_router)

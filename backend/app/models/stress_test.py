@@ -73,6 +73,10 @@ class StressTest(Base):
     # Status code distribution
     status_code_distribution = Column(JSON, nullable=True)
 
+    # Owner
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user = relationship("User", back_populates="tests")
+
     # Relationships
     results = relationship("TestResult", back_populates="stress_test", cascade="all, delete-orphan")
 

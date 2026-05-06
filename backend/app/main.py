@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import init_db
-from app.routes import router as tests_router
+from app.redis_client import get_redis, close_redis
+from app.routes import router
 
 
 settings = get_settings()
@@ -13,10 +14,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     await init_db()
+    await get_redis()  # warm up Redis connection
     yield
-    # Shutdown
+    await close_redis()
 
 
 app = FastAPI(
@@ -36,8 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
-app.include_router(tests_router)
+app.include_router(router)
 
 
 @app.get("/api/health")
